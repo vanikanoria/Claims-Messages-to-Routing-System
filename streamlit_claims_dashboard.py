@@ -1,235 +1,240 @@
 
-import json
-from datetime import timedelta
+# streamlit_claims_dashboard.py
+import os
+import sqlite3
+from datetime import date
+from typing import Optional
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-st.set_page_config(page_title="Claims Messaging KPIs", page_icon="📊", layout="wide")
-st.title("📊 Claims Messaging KPIs & Visuals")
+st.set_page_config(page_title="Claims Messaging Dashboard", layout="wide")
 
-st.markdown("""
-**Upload a CSV / JSON / JSONL file** with at least these columns:
-- `timestamp` (ISO datetime)
-- `role` (e.g., claimant / adjuster)
-- `content` (text of the message)
-
-Optional but recommended:
-- `thread_id` (conversation id)
-- `intents` (JSON array of labels) and/or `intent_primary`
-""")
-
-# ---------------------------
-# Helpers
-# ---------------------------
-def _normalize_df(uploaded_file) -> pd.DataFrame:
-    if uploaded_file is None:
-        return pd.DataFrame()
-
-    name = uploaded_file.name.lower()
-    if name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    elif name.endswith(".jsonl") or name.endswith(".ndjson"):
-        rows = [json.loads(l) for l in uploaded_file.getvalue().decode("utf-8").splitlines() if l.strip()]
-        df = pd.DataFrame(rows)
-    elif name.endswith(".json"):
-        df = pd.read_json(uploaded_file)
-    else:
-        st.error("Unsupported file type. Upload CSV / JSON / JSONL.")
-        return pd.DataFrame()
-
-    # Standardize columns
-    # timestamp
-    tcol = None
-    for c in ["timestamp","created_at","time","date"]:
-        if c in df.columns:
-            tcol = c; break
-    if tcol is None:
-        st.error("No timestamp column found. Please include a 'timestamp' column."); return pd.DataFrame()
-    df[tcol] = pd.to_datetime(df[tcol], errors="coerce", utc=True).dt.tz_convert(None)
-    df = df[~df[tcol].isna()].copy()
-    df = df.sort_values(tcol)
-
-    # role
-    rcol = None
-    for c in ["role","sender_role","from_role"]:
-        if c in df.columns:
-            rcol = c; break
-    if rcol is None:
-        df["role"] = "unknown"; rcol = "role"
-    else:
-        df[rcol] = df[rcol].astype(str).str.lower().str.strip()
-
-    # content
-    ccol = None
-    for c in ["content","text","message"]:
-        if c in df.columns:
-            ccol = c; break
-    if ccol is None:
-        df["content"] = ""; ccol = "content"
-
-    # thread_id
-    thcol = None
-    for c in ["thread_id","conversation_id","claim_id"]:
-        if c in df.columns:
-            thcol = c; break
-    if thcol is None:
-        # fabricate thread ids if missing (not ideal, but enables response-time calc)
-        df["thread_id"] = df.groupby(rcol).cumcount()
-        thcol = "thread_id"
-
-    # intents
-    if "intents" in df.columns:
-        def to_list(x):
-            if isinstance(x, (list, tuple)):
-                return list(x)
-            if isinstance(x, str) and x.strip().startswith("["):
-                try: return json.loads(x)
-                except Exception: return []
-            return []
-        df["intents"] = df["intents"].apply(to_list)
-    else:
-        df["intents"] = [[] for _ in range(len(df))]
-
-    # primary intent
-    if "intent_primary" not in df.columns:
-        df["intent_primary"] = df["intents"].apply(lambda xs: xs[0] if xs else "Unclassified")
-
-    # rename unified
-    df.rename(columns={tcol:"timestamp", rcol:"role", thcol:"thread_id", ccol:"content"}, inplace=True)
+# ------------------------------
+# Data Loading
+# ------------------------------
+@st.cache_data(show_spinner=False)
+def load_from_sqlite(db_path: str, table: str = "messages") -> pd.DataFrame:
+    conn = sqlite3.connect(db_path)
+    try:
+        df = pd.read_sql(f"SELECT * FROM {table}", conn)
+    finally:
+        conn.close()
     return df
 
-def compute_response_times(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute response times when the role switches inside a thread.
-       Returns columns: thread_id, direction, response_minutes, timestamp"""
-    if df.empty: return pd.DataFrame(columns=["thread_id","direction","response_minutes","timestamp"])
-    out = []
-    for tid, g in df.sort_values("timestamp").groupby("thread_id"):
-        prev_time, prev_role = None, None
-        for _, row in g.iterrows():
-            t, role = row["timestamp"], row["role"]
-            if prev_time is not None and role != prev_role and {"claimant","adjuster"} <= {role, prev_role} | {"claimant","adjuster"}:
-                direction = f"{prev_role}→{role}"
-                delta_min = (t - prev_time).total_seconds() / 60.0
-                if 0 < delta_min < 60*24*30:  # under 30 days
-                    out.append({"thread_id": tid, "direction": direction, "response_minutes": delta_min, "timestamp": t})
-            prev_time, prev_role = t, role
-    return pd.DataFrame(out)
+@st.cache_data(show_spinner=False)
+def load_from_csv(file) -> pd.DataFrame:
+    return pd.read_csv(file)
 
-def pct_messages_by_intent(df: pd.DataFrame) -> pd.DataFrame:
+# ------------------------------
+# Utilities
+# ------------------------------
+def coerce_datetime(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    if col in df.columns:
+        df[col] = pd.to_datetime(df[col], errors="coerce")
+    else:
+        # try common fallback names
+        for alt in ("ts_iso", "created_at", "time", "date"):
+            if alt in df.columns:
+                df[col] = pd.to_datetime(df[alt], errors="coerce")
+                break
+    return df
+
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    # Ensure columns we use are present
+    for c in ("thread_id", "timestamp", "role", "content"):
+        if c not in df.columns:
+            df[c] = None
+    # Standardize dtypes
+    df["role"] = df["role"].astype(str).str.strip().str.lower()
+    df["content"] = df["content"].astype(str)
+    # Primary intent: prefer 'intent_primary' else derive later
+    if "intent_primary" in df.columns:
+        df["intent_primary"] = df["intent_primary"].astype(str).str.strip()
+        df.loc[df["intent_primary"].isin(["", "nan", "None"]), "intent_primary"] = "Unclassified"
+    else:
+        df["intent_primary"] = "Unclassified"
+    # If multi-label exists, try to parse lists stored as strings
+    if "intents" in df.columns:
+        df["intents"] = df["intents"].apply(_safe_parse_list)
+    return df
+
+def _safe_parse_list(x):
+    if isinstance(x, list):
+        return x
+    if pd.isna(x):
+        return []
+    s = str(x).strip()
+    if s.startswith("[") and s.endswith("]"):
+        # try JSON
+        import json
+        try:
+            v = json.loads(s)
+            return v if isinstance(v, list) else []
+        except Exception:
+            pass
+    # comma-separated fallback
+    if "," in s:
+        return [p.strip() for p in s.split(",") if p.strip()]
+    return [] if s in ("", "nan", "None") else [s]
+
+def percent_series(series: pd.Series) -> pd.DataFrame:
+    vc = series.value_counts(dropna=False, normalize=True).sort_values(ascending=False) * 100.0
+    out = vc.rename_axis(series.name or "label").reset_index(name="pct")
+    out.rename(columns={out.columns[0]: "label"}, inplace=True)
+    return out
+
+def compute_rt_from_messages(msgs: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute response deltas (minutes) when role switches claimant <-> adjuster within a thread.
+    Excludes gaps <= 0 or > 30 days.
+    """
+    if not {"thread_id", "timestamp", "role"}.issubset(msgs.columns):
+        return pd.DataFrame(columns=["thread_id","prev_role","curr_role","delta_minutes","ts_iso"])
+    df = msgs[["thread_id","timestamp","role"]].dropna().copy()
+    df = df.sort_values(["thread_id","timestamp"])
     rows = []
-    for _, r in df.iterrows():
-        xs = r["intents"] if isinstance(r["intents"], (list,tuple)) and len(r["intents"])>0 else [r.get("intent_primary","Unclassified")]
-        for it in xs:
-            rows.append({"intent": it})
-    d = pd.DataFrame(rows)
-    if d.empty: return d
-    counts = d.value_counts("intent").reset_index(name="count")
-    counts["percent"] = 100 * counts["count"] / counts["count"].sum()
-    return counts.sort_values("percent", ascending=False)
+    prev = {}
+    for r in df.itertuples(index=False):
+        t, ts, role = r.thread_id, r.timestamp, r.role
+        if t in prev:
+            p_role, p_ts = prev[t]
+            if {p_role, role} <= {"claimant","adjuster"} and p_role != role:
+                delta = (ts - p_ts).total_seconds()/60.0
+                if 0 < delta < 60*24*30:
+                    rows.append((t, p_role, role, float(delta), ts))
+        prev[t] = (role, ts)
+    return pd.DataFrame(rows, columns=["thread_id","prev_role","curr_role","delta_minutes","ts_iso"])
 
-def weekly_escalation_pct_by_role(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty: return df
-    tmp = df.copy()
-    tmp["week"] = tmp["timestamp"].dt.to_period("W").apply(lambda r: r.start_time)
-    # treat any intent containing "escalation" (case-insensitive) as escalation/complaint
-    def is_escalation(row):
-        intents = row["intents"] if isinstance(row["intents"], (list,tuple)) else []
-        intents = [*intents, row.get("intent_primary","")]
-        return any("escalation" in str(x).lower() for x in intents)
-    tmp["is_escalation"] = tmp.apply(is_escalation, axis=1)
-    grp = tmp.groupby(["week","role"]).agg(
-        total=("content","count"),
-        escalations=("is_escalation","sum")
-    ).reset_index()
-    grp["pct_escalation"] = np.where(grp["total"]>0, 100*grp["escalations"]/grp["total"], 0.0)
-    return grp
+def median_rt(rt: pd.DataFrame, prev_role: str, curr_role: str) -> Optional[float]:
+    if rt.empty:
+        return None
+    sub = rt.query("prev_role == @prev_role and curr_role == @curr_role")
+    return None if sub.empty else float(sub["delta_minutes"].median())
 
-# ---------------------------
-# UI
-# ---------------------------
-uploaded = st.file_uploader("Upload dataset", type=["csv","json","jsonl","ndjson"])
-df = _normalize_df(uploaded)
+# ------------------------------
+# Sidebar: Data Input
+# ------------------------------
+st.sidebar.header("Data")
+source = st.sidebar.radio("Load data from", ["SQLite (.db)", "CSV upload"], horizontal=True)
+
+df = pd.DataFrame()
+if source == "SQLite (.db)":
+    db_path = st.sidebar.text_input("SQLite DB path", value="claims.db")
+    table = st.sidebar.text_input("Table name", value="messages")
+    if st.sidebar.button("Load"):
+        if not os.path.exists(db_path):
+            st.error(f"DB not found: {db_path}")
+        else:
+            df = load_from_sqlite(db_path, table)
+else:
+    up = st.sidebar.file_uploader("Upload CSV (export of your messages table)", type=["csv"])
+    if up is not None:
+        df = load_from_csv(up)
 
 if df.empty:
+    st.info("Load your data (SQLite table or CSV) to see the dashboard.")
     st.stop()
 
-# Filters
-min_dt, max_dt = df["timestamp"].min().date(), df["timestamp"].max().date()
-start, end = st.sidebar.date_input("Date range", (min_dt, max_dt))
-if isinstance(start, tuple):
-    start, end = start
-df = df[(df["timestamp"] >= pd.to_datetime(start)) & (df["timestamp"] <= pd.to_datetime(end) + pd.Timedelta(days=1))]
+# Normalize/prepare
+df = coerce_datetime(df, "timestamp")
+df = normalize_columns(df)
+df = df.dropna(subset=["timestamp"])
+df = df.sort_values("timestamp")
+df_time = df.set_index("timestamp")
 
-roles = sorted(df["role"].unique())
-role_sel = st.sidebar.multiselect("Roles", roles, default=roles)
-df = df[df["role"].isin(role_sel)]
+# Sidebar filters
+st.sidebar.header("Filters")
+roles = sorted(df["role"].dropna().unique().tolist())
+role_filter = st.sidebar.multiselect("Role(s)", roles, default=roles)
+min_d, max_d = df_time.index.min().date(), df_time.index.max().date()
+date_range = st.sidebar.date_input("Date range", value=(min_d, max_d),
+                                   min_value=min_d, max_value=max_d)
 
-st.divider()
+df_f = df_time.loc[str(date_range[0]):str(date_range[-1])]
+if role_filter:
+    df_f = df_f[df_f["role"].isin(role_filter)]
 
-# ---------------------------
-# KPIs
-# ---------------------------
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Total messages processed", f"{len(df):,}")
+# ------------------------------
+# KPIs (using MEDIAN)
+# ------------------------------
+rt = compute_rt_from_messages(df_f.reset_index())  # build on the filtered range
+med_c2a = median_rt(rt, "claimant", "adjuster")
+med_a2c = median_rt(rt, "adjuster", "claimant")
 
-# response times
-rt = compute_response_times(df)
-with col2:
-    c_to_a = rt[rt["direction"]=="claimant→adjuster"]["response_minutes"]
-    st.metric("Avg response time (claimant→adjuster)", f"{c_to_a.mean():.1f} min" if len(c_to_a) else "—")
+c1, c2, c3 = st.columns(3)
+c1.metric("Total messages", f"{len(df_f):,}")
+c2.metric("Median RT: claimant → adjuster", f"{med_c2a:.1f} min" if med_c2a is not None else "—")
+c3.metric("Median RT: adjuster → claimant", f"{med_a2c:.1f} min" if med_a2c is not None else "—")
 
-with col3:
-    a_to_c = rt[rt["direction"]=="adjuster→claimant"]["response_minutes"]
-    st.metric("Avg response time (adjuster→claimant)", f"{a_to_c.mean():.1f} min" if len(a_to_c) else "—")
+st.markdown("---")
 
-with col4:
-    wk = weekly_escalation_pct_by_role(df)
-    recent = wk[wk["week"]==wk["week"].max()] if not wk.empty else pd.DataFrame()
-    if not recent.empty:
-        avg_pct = recent["pct_escalation"].mean()
-        st.metric("% Escalation (last week avg)", f"{avg_pct:.1f}%")
-    else:
-        st.metric("% Escalation (last week avg)", "—")
-
-st.divider()
-
-# ---------------------------
-# Visual 1: % of messages by intents
-# ---------------------------
-st.subheader("% of messages by intents")
-pct = pct_messages_by_intent(df)
-if pct.empty:
-    st.info("No intent data found. Include `intents` (list) or `intent_primary`.")
+# ------------------------------
+# % of messages by intent
+# ------------------------------
+st.subheader("% of messages by intent")
+if "intents" in df_f.columns and df_f["intents"].apply(lambda x: isinstance(x, list) and len(x)>0).any():
+    long = df_f.reset_index().explode("intents").dropna(subset=["intents"])
+    intent_pct = percent_series(long["intents"].rename("intent"))
 else:
-    fig = px.bar(pct, x="intent", y="percent", title="% of Messages by Intent")
-    st.plotly_chart(fig, use_container_width=True)
+    intent_pct = percent_series(df_f["intent_primary"].rename("intent"))
 
-# ---------------------------
-# Visual 2: Volume of messages by role
-# ---------------------------
+fig1 = px.bar(intent_pct, x="intent", y="pct", text="pct")
+fig1.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+fig1.update_layout(yaxis_title="% of messages", xaxis_title="Intent", uniformtext_minsize=8, uniformtext_mode='hide')
+st.plotly_chart(fig1, use_container_width=True)
+
+# ------------------------------
+# Volume of messages by role
+# ------------------------------
 st.subheader("Volume of messages by role")
-by_role = df.value_counts("role").reset_index(name="count")
-fig2 = px.bar(by_role, x="role", y="count", title="Message Volume by Role")
+role_cnt = df_f["role"].value_counts(dropna=False).rename_axis("role").reset_index(name="count")
+fig2 = px.bar(role_cnt, x="role", y="count", text="count")
+fig2.update_traces(textposition="outside")
+fig2.update_layout(yaxis_title="Messages", xaxis_title="Role")
 st.plotly_chart(fig2, use_container_width=True)
 
-# ---------------------------
-# Visual 3: % Escalation by week and role
-# ---------------------------
-st.subheader("% of messages classified as Escalation/Complaint by week and role")
-wk = weekly_escalation_pct_by_role(df)
-if wk.empty:
-    st.info("Not enough data to compute weekly escalation rates.")
-else:
-    fig3 = px.line(wk, x="week", y="pct_escalation", color="role",
-                   markers=True, title="% Escalation by Week and Role")
-    st.plotly_chart(fig3, use_container_width=True)
+st.markdown("---")
 
-# ---------------------------
-# Raw table (optional)
-# ---------------------------
-with st.expander("Preview data"):
-    st.dataframe(df.head(50), use_container_width=True)
+# ------------------------------
+# Messages over time (line)
+# ------------------------------
+st.subheader("Messages over time")
+freq = st.radio("Aggregation", ["Daily", "Weekly", "Monthly"], horizontal=True, key="msg_freq")
+rule = {"Daily": "D", "Weekly": "W", "Monthly": "MS"}[freq]
+vol_ts = df_f["content"].resample(rule).size().rename("messages").reset_index()
+fig3 = px.line(vol_ts, x="timestamp", y="messages", markers=True)
+fig3.update_layout(xaxis_title=f"{freq} timeline", yaxis_title="Count")
+st.plotly_chart(fig3, use_container_width=True)
+
+# ------------------------------
+# Intent over time (line)
+# ------------------------------
+st.subheader("Intent over time")
+if "intents" in df_f.columns and df_f["intents"].apply(lambda x: isinstance(x, list) and len(x)>0).any():
+    long = df_f.reset_index().explode("intents").dropna(subset=["intents"])
+    intent_ts = (
+        long.groupby([pd.Grouper(key="timestamp", freq=rule), "intents"])
+            .size()
+            .reset_index(name="count")
+            .rename(columns={"intents": "intent"})
+    )
+else:
+    tmp = df_f.reset_index()
+    tmp["intent"] = tmp["intent_primary"].fillna("Unclassified")
+    intent_ts = (
+        tmp.groupby([pd.Grouper(key="timestamp", freq=rule), "intent"])
+            .size()
+            .reset_index(name="count")
+    )
+
+fig4 = px.line(intent_ts, x="timestamp", y="count", color="intent", markers=True)
+fig4.update_layout(xaxis_title=f"{freq} timeline", yaxis_title="Count")
+st.plotly_chart(fig4, use_container_width=True)
+
+# ------------------------------
+# Data preview
+# ------------------------------
+with st.expander("Preview data (filtered)"):
+    st.dataframe(df_f.reset_index().head(50))
