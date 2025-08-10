@@ -79,18 +79,26 @@ def load_messages(db_path: str) -> pd.DataFrame:
 # =======================
 # KPI helpers
 # =======================
-def _dir_response_deltas(df: pd.DataFrame, from_role: str, to_role: str) -> List[pd.Timedelta]:
-    """For each message by `from_role`, if the next in thread is `to_role`, record delta."""
-    out: List[pd.Timedelta] = []
+def response_deltas_next_reply(df: pd.DataFrame, from_role: str, to_role: str) -> list[pd.Timedelta]:
+    """Time to the next message by the opposite role (not necessarily adjacent).
+       - Skips threads with only 1 message
+       - No 30-day cap"""
+    out: list[pd.Timedelta] = []
     for _, g in df.groupby("thread_id", sort=False):
+        if len(g) < 2:
+            continue
         g = g.sort_values("timestamp")
-        roles = g["role"].values
-        times = g["timestamp"].values
-        for i in range(len(g) - 1):
-            if roles[i] == from_role and roles[i + 1] == to_role:
-                dt = pd.Timestamp(times[i + 1]) - pd.Timestamp(times[i])
-                if pd.notna(dt) and pd.Timedelta(0) <= dt <= pd.Timedelta(days=30):
-                    out.append(dt)
+        for i, row in g[g["role"] == from_role].iterrows():
+            t0 = pd.Timestamp(row["timestamp"])
+            if pd.isna(t0):
+                continue
+            # first subsequent message by to_role
+            later = g.loc[g.index > i]
+            nxt = later[later["role"] == to_role]
+            if not nxt.empty:
+                t1 = pd.Timestamp(nxt.iloc[0]["timestamp"])
+                if pd.notna(t1) and t1 >= t0:
+                    out.append(t1 - t0)
     return out
 
 
@@ -212,10 +220,10 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.metric("Total messages", f"{len(df_overview):,}")
 with c2:
-    d1 = _dir_response_deltas(df_overview, "claimant", "adjuster")
+    d1 = response_deltas_next_reply(df_overview, "claimant", "adjuster")
     st.metric("Median response (Claimant → Adjuster)", f"{median_hours(d1):.1f} h" if d1 else "—")
 with c3:
-    d2 = _dir_response_deltas(df_overview, "adjuster", "claimant")
+    d2 = response_deltas_next_reply(df_overview, "adjuster", "claimant")
     st.metric("Median response (Adjuster → Claimant)", f"{median_hours(d2):.1f} h" if d2 else "—")
 with c4:
     st.metric("Active threads", f"{df_overview['thread_id'].nunique():,}")
@@ -324,7 +332,7 @@ with tab_intents:
             st.plotly_chart(fig, use_container_width=True)
 
     with c2:
-        st.markdown("### Distributino of all Intents of Claimants")
+        st.markdown("### Distribution of all Intents of Claimants")
         m = multi_pct(df_claim)  # explode list; denom = # claimant msgs
         if m.empty:
             st.info("No multi-intents available.")
