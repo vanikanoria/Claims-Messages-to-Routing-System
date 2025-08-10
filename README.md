@@ -99,14 +99,16 @@ In the sidebar you can upload a .db file if you don’t want to use the local cl
 
 
 ## 7) Troubleshooting Tips
-	•	No data after filters. Adjust the sidebar: Check that your CSV/DB file actually contains rows for the selected date range.
-	•	Ensure your timestamp column is populated—run the timestamp fix script if needed.
+
+* No data after filters. Adjust the sidebar: Check that your CSV/DB file actually contains rows for the selected date range.
+  
+* Ensure your timestamp column is populated—run the timestamp fix script if needed.
 ```bash 
 python fix_timestamps.py
 ```
-	•	Deployment errors on Streamlit Cloud (Could not install packages due to an OSError): This is usually due to OS-specific packages in requirements.txt (like appnope); 
-		Remove platform-specific packages or use conditional installs.
- 	•	Dashboard loads but graphs are blank: Check that your DB has primary_intent and all_intents populated.mIf empty, re-run ingestion + AI integration scripts.
+* Deployment errors on Streamlit Cloud (Could not install packages due to an OSError): This is usually due to OS-specific packages in requirements.txt (like appnope); Remove platform-specific packages or use conditional installs.
+
+* Dashboard loads but graphs are blank: Check that your DB has primary_intent and all_intents populated. If empty, re-run ingestion + AI integration scripts.
 
 ## 8) What’s next
 	•	Deploy Streamlit to Streamlit Community Cloud
