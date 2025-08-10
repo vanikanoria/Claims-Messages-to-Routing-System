@@ -13,8 +13,9 @@ This repository contains a complete pipeline for **ingesting, processing, classi
 | **`summarization.ipynb`** | Generates summaries of long conversation threads using LLM-based summarization. |
 | **`streamlit_claims_dashboard.py`** | Interactive dashboard for exploring message intents, conversation patterns, and trends over time. Connects to `claims.db`. |
 | **`claims.db`** (+ `.db-shm` & `.db-wal`) | SQLite database containing ingested and enriched message data. |
-| **
-| **`conversation_durations_with_quartiles.png`** | Visualization of conversation duration distribution. |
+| **`messages.csv`** | CSV file contained original message data. |
+| **`messages_raw.jsonl`** | Message data as newline-delimited JSON with realistic anomalies
+(missing fields, bad types, duplicates, etc.). |
 
 
 ## ⚙️ Installation
