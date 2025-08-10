@@ -26,7 +26,6 @@ This repository contains a complete pipeline for **ingesting, processing, classi
 - Git (optional)  
 - (Optional) OpenAI API key for LLM-based summaries/intents
 
----
 
 ## 2) Create a virtual environment
 ```bash
@@ -34,14 +33,13 @@ python3 -m venv venv
 source venv/bin/activate         # macOS/Linux
 # or on Windows:
 # venv\Scripts\activate
-
----
+```
 
 ## 3) Install dependencies
 ```bash
 pip install -r requirements.txt
 
----
+```
 
 ## 4) Project data inputs
 	•	messages.csv → the original raw messages CSV you were given
@@ -59,11 +57,12 @@ Quick start (CSV)
 
 ```bash
 python ingest_messages.py --input messages.csv --db claims.db --create
+```
 
 Alternate (JSONL with anomalies)
-
+```
 python ingest_messages.py --input messages_raw.jsonl --db claims.db --create
-
+```
 Flags (common):
 	•	--input : path to messages.csv or messages_raw.jsonl
 	•	--db    : path to SQLite DB (default: claims.db)
@@ -81,8 +80,33 @@ CREATE TABLE IF NOT EXISTS messages (
   role TEXT,
   content TEXT
 );
+```
 
 ## 6) Run the Streamlit dashboard
 
+```bash 
 streamlit run streamlit_claims_dashboard.py
 
+```
+
+What it does
+	•	Connects to claims.db
+	•	Robustly parses timestamps from timestamp (or falls back to ts_iso/ts_unix if present)
+	•	Provides a single date range filter (with a unique key to avoid duplicates)
+	•	Visuals:
+	•	% of messages by intent (multi-label if all_intents exists; otherwise primary intent)
+	•	Volume by role
+	•	Messages over time (daily/weekly/monthly)
+	•	Intents over time (daily/weekly/monthly)
+	•	KPIs:
+	•	Total messages in window
+	•	(Optional) median response times if a response_times table exists
+
+Upload DB option
+In the sidebar you can upload a .db file if you don’t want to use the local claims.db.
+
+
+## 7) What’s next
+	•	Deploy Streamlit to Streamlit Community Cloud
+	•	Enhance classifier with fine-tuned model
+	•	Add SLA/first-response metrics and alerts
