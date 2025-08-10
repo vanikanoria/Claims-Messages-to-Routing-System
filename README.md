@@ -51,22 +51,15 @@ Place the file(s) at the repo root (or pass a path to the ingest script).
 
 ## 5) Ingest → SQLite
 
-This creates/updates claims.db with a normalized messages table.
+This creates/updates claims.db with a normalized messages table from the messages_raw.jsonl file.
 
-Quick start (CSV)
 
-```bash
-python ingest_messages.py --input messages.csv --db claims.db 
-```
-
-Alternate (JSONL with anomalies)
 ```
 python ingest_messages.py --input messages_raw.jsonl --db claims.db
 ```
 Flags (common):
 	•	--input : path to messages.csv or messages_raw.jsonl
 	•	--db    : path to SQLite DB (default: claims.db)
-	•	--create: create tables if missing (idempotent)
 	•	--wal   : enable WAL mode for faster writes (optional)
 
 Resulting table (minimal schema):
