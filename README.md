@@ -82,23 +82,36 @@ streamlit run streamlit_claims_dashboard.py
 ```
 
 What it does
-	•	Connects to claims.db
-	•	Robustly parses timestamps from timestamp (or falls back to ts_iso/ts_unix if present)
-	•	Provides a single date range filter (with a unique key to avoid duplicates)
-	•	Visuals:
-	•	% of messages by intent (multi-label if all_intents exists; otherwise primary intent)
-	•	Volume by role
-	•	Messages over time (daily/weekly/monthly)
-	•	Intents over time (daily/weekly/monthly)
-	•	KPIs:
-	•	Total messages in window
-	•	(Optional) median response times if a response_times table exists
+* Connects to claims.db
+* Robustly parses timestamps from timestamp (or falls back to ts_iso/ts_unix if present)
+* Provides a single date range filter (with a unique key to avoid duplicates)
+* Visuals:
+* % of messages by intent (multi-label if all_intents exists; otherwise primary intent)
+* Volume by role
+* Messages over time (daily/weekly/monthly)
+* Intents over time (daily/weekly/monthly)
+* KPIs:
+* Total messages in window
+* (Optional) median response times if a response_times table exists
 
 Upload DB option
 In the sidebar you can upload a .db file if you don’t want to use the local claims.db.
 
 
-## 7) What’s next
-	•	Deploy Streamlit to Streamlit Community Cloud
-	•	Enhance classifier with fine-tuned model
-	•	Add SLA/first-response metrics and alerts
+## 7) Troubleshooting Tips
+
+* No data after filters. Adjust the sidebar: Check that your CSV/DB file actually contains rows for the selected date range.
+  
+* Ensure your timestamp column is populated—run the timestamp fix script if needed.
+```bash 
+python fix_timestamps.py
+```
+* Deployment errors on Streamlit Cloud (Could not install packages due to an OSError): This is usually due to OS-specific packages in requirements.txt (like appnope); Remove platform-specific packages or use conditional installs.
+
+* Dashboard loads but graphs are blank: Check that your DB has primary_intent and all_intents populated. If empty, re-run ingestion + AI integration scripts.
+
+## 8) What’s next
+
+* Deploy Streamlit to Streamlit Community Cloud
+* Enhance classifier with fine-tuned model
+* Add SLA/first-response metrics and alerts
