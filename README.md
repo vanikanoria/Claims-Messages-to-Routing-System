@@ -125,4 +125,6 @@ python fix_timestamps.py
 ## 9) What’s next
 
 * Enhance classifier with fine-tuned model or supervised learning
+* Integrate real-time ingestion pipeline
+* Expand intent taxonomy using advanced NLP models
 * Add SLA/first-response metrics and alerts
