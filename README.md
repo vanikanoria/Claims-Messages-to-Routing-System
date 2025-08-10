@@ -35,8 +35,10 @@ source venv/bin/activate         # macOS/Linux
 
 ## 3) Install dependencies
 ```bash
-pip install -r requirements.txt
-
+pip install -r requirements-local.txt #the requirements.txt file is for the streamlit app
+python -m spacy download en_core_web_sm
+# or for scispaCy:
+pip install https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.1/en_core_sci_sm-0.5.1.tar.gz
 ```
 
 ## 4) Project data inputs
