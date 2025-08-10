@@ -59,7 +59,7 @@ python ingest_messages.py --input messages.csv --db claims.db --create
 
 Alternate (JSONL with anomalies)
 ```
-python ingest_messages.py --input messages_raw.jsonl --db claims.db --create
+python ingest_messages.py --input messages_raw.jsonl --db claims.db
 ```
 Flags (common):
 	•	--input : path to messages.csv or messages_raw.jsonl
