@@ -2,7 +2,6 @@
 
 This repository contains a complete pipeline for **ingesting, processing, classifying, and analyzing claims-related messages**, along with a **Streamlit dashboard** for interactive exploration.
 
----
 
 ## 📂 Repository Structure
 
@@ -17,7 +16,6 @@ This repository contains a complete pipeline for **ingesting, processing, classi
 | **
 | **`conversation_durations_with_quartiles.png`** | Visualization of conversation duration distribution. |
 
----
 
 ## ⚙️ Installation
 
