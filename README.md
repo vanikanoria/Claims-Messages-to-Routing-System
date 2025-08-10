@@ -124,6 +124,5 @@ python fix_timestamps.py
 
 ## 9) What’s next
 
-* Deploy Streamlit to Streamlit Community Cloud
-* Enhance classifier with fine-tuned model
+* Enhance classifier with fine-tuned model or supervised learning
 * Add SLA/first-response metrics and alerts
