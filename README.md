@@ -56,7 +56,7 @@ This creates/updates claims.db with a normalized messages table.
 Quick start (CSV)
 
 ```bash
-python ingest_messages.py --input messages.csv --db claims.db --create
+python ingest_messages.py --input messages.csv --db claims.db 
 ```
 
 Alternate (JSONL with anomalies)
