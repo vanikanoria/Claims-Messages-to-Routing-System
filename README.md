@@ -60,7 +60,6 @@ python ingest_messages.py --input messages_raw.jsonl --db claims.db
 Flags (common):
 	•	--input : path to messages.csv or messages_raw.jsonl
 	•	--db    : path to SQLite DB (default: claims.db)
-	•	--wal   : enable WAL mode for faster writes (optional)
 
 Resulting table (minimal schema):
 
