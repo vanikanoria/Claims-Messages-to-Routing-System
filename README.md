@@ -72,7 +72,7 @@ Resulting table (minimal schema):
 ```sql
 
 CREATE TABLE IF NOT EXISTS messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message_id INTEGER PRIMARY KEY AUTOINCREMENT,
   thread_id INTEGER,
   timestamp TEXT,
   role TEXT,
