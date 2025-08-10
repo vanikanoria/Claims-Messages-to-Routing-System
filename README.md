@@ -9,8 +9,8 @@ This repository contains a complete pipeline for **ingesting, processing, classi
 |---------------|-------------|
 | **`ingest_messages.py`** | Loads raw message data (`messages_raw.jsonl`) into a SQLite database (`claims.db`) for further processing. |
 | **`analysis.ipynb`** | Exploratory Data Analysis (EDA) on message content, volume, intents, and conversation durations. Produces visualizations and statistics. |
-| **`topic_modeling.ipynb`** | Applies NLP topic modeling to group messages into thematic categories. |
-| **`summarization.ipynb`** | Generates summaries of long conversation threads using LLM-based summarization. |
+| **`get_intents.ipynb`** | In this notebook I built a hybrid regex-LLM intent classifier and before building that model I built the following: (1) LDA-based (Latent Discrimination Analysis) topic classification model (2)Regex-based (Regular Expressions) rules based model (3) LLM-based model with probability-based primary model selection |
+| **`get_summary_and_subject.ipynb`** | Generates summaries of long conversation threads using LLM-based summarization. |
 | **`streamlit_claims_dashboard.py`** | Interactive dashboard for exploring message intents, conversation patterns, and trends over time. Connects to `claims.db`. |
 | **`claims.db`** (+ `.db-shm` & `.db-wal`) | SQLite database containing ingested and enriched message data. |
 | **`messages.csv`** | CSV file contained original message data. |
@@ -35,8 +35,10 @@ source venv/bin/activate         # macOS/Linux
 
 ## 3) Install dependencies
 ```bash
-pip install -r requirements.txt
-
+pip install -r requirements-local.txt #the requirements.txt file is for the streamlit app
+python -m spacy download en_core_web_sm
+# or for scispaCy:
+pip install https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.1/en_core_sci_sm-0.5.1.tar.gz
 ```
 
 ## 4) Project data inputs
