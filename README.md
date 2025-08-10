@@ -74,7 +74,19 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 ```
 
-## 6) Run the Streamlit dashboard
+## 6) Analyze & Explore Data
+
+* analysis.ipynb — Run exploratory data analysis (EDA) on claims messages.
+* get_intents.ipynb — Apply NLP models and LLMs to detect topics and intent patterns.
+* get_summary_and_subject.ipynb — Generate summaries of messages using LLM pipelines.
+
+Open in Jupyter:
+
+```bash
+jupyter notebook analysis.ipynb
+```
+
+## 7) Run the Streamlit dashboard
 
 ```bash 
 streamlit run streamlit_claims_dashboard.py
@@ -98,7 +110,7 @@ Upload DB option
 In the sidebar you can upload a .db file if you don’t want to use the local claims.db.
 
 
-## 7) Troubleshooting Tips
+## 8) Troubleshooting Tips
 
 * No data after filters. Adjust the sidebar: Check that your CSV/DB file actually contains rows for the selected date range.
   
@@ -110,7 +122,7 @@ python fix_timestamps.py
 
 * Dashboard loads but graphs are blank: Check that your DB has primary_intent and all_intents populated. If empty, re-run ingestion + AI integration scripts.
 
-## 8) What’s next
+## 9) What’s next
 
 * Deploy Streamlit to Streamlit Community Cloud
 * Enhance classifier with fine-tuned model
