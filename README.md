@@ -10,7 +10,7 @@ This repository contains a complete pipeline for **ingesting, processing, classi
 | **`ingest_messages.py`** | Loads raw message data (`messages_raw.jsonl`) into a SQLite database (`claims.db`) for further processing. |
 | **`analysis.ipynb`** | Exploratory Data Analysis (EDA) on message content, volume, intents, and conversation durations. Produces visualizations and statistics. |
 | **`get_intents.ipynb`** | In this notebook I built a hybrid regex-LLM intent classifier and before building that model I built the following: (1) LDA-based (Latent Discrimination Analysis) topic classification model (2)Regex-based (Regular Expressions) rules based model (3) LLM-based model with probability-based primary model selection |
-| **`get_summary_and_subject.ipynb`** | Generates summaries of long conversation threads using LLM-based summarization. |
+| **`get_summary_and_subject.ipynb`** | Generates (1) One-line Summaries  (2) Subjects of long conversation threads using LLM-based summarization. |
 | **`streamlit_claims_dashboard.py`** | Interactive dashboard for exploring message intents, conversation patterns, and trends over time. Connects to `claims.db`. |
 | **`claims.db`** (+ `.db-shm` & `.db-wal`) | SQLite database containing ingested and enriched message data. |
 | **`messages.csv`** | CSV file contained original message data. |
@@ -51,23 +51,15 @@ Place the file(s) at the repo root (or pass a path to the ingest script).
 
 ## 5) Ingest → SQLite
 
-This creates/updates claims.db with a normalized messages table.
+This creates/updates claims.db with a normalized messages table from the messages_raw.jsonl file.
 
-Quick start (CSV)
 
-```bash
-python ingest_messages.py --input messages.csv --db claims.db --create
-```
-
-Alternate (JSONL with anomalies)
 ```
 python ingest_messages.py --input messages_raw.jsonl --db claims.db
 ```
 Flags (common):
 	•	--input : path to messages.csv or messages_raw.jsonl
 	•	--db    : path to SQLite DB (default: claims.db)
-	•	--create: create tables if missing (idempotent)
-	•	--wal   : enable WAL mode for faster writes (optional)
 
 Resulting table (minimal schema):
 
