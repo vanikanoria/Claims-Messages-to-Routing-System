@@ -10,7 +10,7 @@ This repository contains a complete pipeline for **ingesting, processing, classi
 | **`ingest_messages.py`** | Loads raw message data (`messages_raw.jsonl`) into a SQLite database (`claims.db`) for further processing. |
 | **`analysis.ipynb`** | Exploratory Data Analysis (EDA) on message content, volume, intents, and conversation durations. Produces visualizations and statistics. |
 | **`get_intents.ipynb`** | In this notebook I built a hybrid regex-LLM intent classifier and before building that model I built the following: (1) LDA-based (Latent Discrimination Analysis) topic classification model (2)Regex-based (Regular Expressions) rules based model (3) LLM-based model with probability-based primary model selection |
-| **`get_summary_and_subject.ipynb`** | Generates summaries of long conversation threads using LLM-based summarization. |
+| **`get_summary_and_subject.ipynb`** | Generates (1) One-line Summaries  (2) Subjects of long conversation threads using LLM-based summarization. |
 | **`streamlit_claims_dashboard.py`** | Interactive dashboard for exploring message intents, conversation patterns, and trends over time. Connects to `claims.db`. |
 | **`claims.db`** (+ `.db-shm` & `.db-wal`) | SQLite database containing ingested and enriched message data. |
 | **`messages.csv`** | CSV file contained original message data. |
